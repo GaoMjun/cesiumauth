@@ -1,8 +1,10 @@
 package cesiumauth
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"time"
 
@@ -15,6 +17,23 @@ import (
 func init() {
 	caddy.RegisterModule(CesiumAuth{})
 }
+
+var (
+	DNS_SERVER = "114.114.114.114:53"
+
+	dialer = net.Dialer{Resolver: &net.Resolver{Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+		return net.Dial(network, DNS_SERVER)
+	}}}
+
+	httpClient = &http.Client{
+		Transport: &http.Transport{
+			Dial: func(network, addr string) (conn net.Conn, err error) {
+				return dialer.Dial(network, addr)
+			},
+		},
+		Timeout: time.Second * 3,
+	}
+)
 
 type CesiumAuth struct {
 	logger *zap.Logger
@@ -64,7 +83,7 @@ func (self *CesiumAuth) updateAuthorization(u string) {
 		ep   = endpoint{}
 	)
 
-	if resp, err = http.Get(u); err != nil {
+	if resp, err = httpClient.Get(u); err != nil {
 		return
 	}
 
